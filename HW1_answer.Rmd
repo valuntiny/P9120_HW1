@@ -1,0 +1,232 @@
+---
+title: "P9120 HW1 answer"
+author: "Guojing Wu | UNI: gw2383"
+date: "9/30/2019"
+output:
+    pdf_document:
+    highlight: default
+    number_sections: true
+    citation_package:
+    keep_tex: false
+    fig_caption: true
+    latex_engine: pdflatex
+fontsize: 10pt
+geometry: margin=1in
+bibliography:
+biblio-style:
+header-includes:
+- \usepackage{indentfirst}
+- \usepackage{graphicx}
+- \usepackage{geometry}
+- \usepackage{subfigure}
+- \usepackage{amsmath}
+- \usepackage{listings}
+- \usepackage{tikz}
+- \usetikzlibrary{matrix}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, comment = "")
+library(tidyverse)
+options(knitr.table.format = "latex")
+theme_set(theme_bw())
+```
+
+# 1. Let X denote an n × p matrix with each row an input vector and y denote an n-dimensional vector of the output in the training set. For fixed $q \geq 1$, define
+
+$$
+Bridge_{\lambda}(\beta) = (y - X\beta)^T(y - X\beta) + \lambda\sum_{j=1}^{p}|\beta_{j}|^q
+$$
+
+# for $\lambda > 0$. Denote the minimal value of the penalty function over the least squares solution set by
+
+$$
+\displaystyle t_{0} = min_{\beta:X^T X\beta=X^T y} \sum_{j=1}^{p}|\beta_{j}|^q
+$$
+
+## (a) Show that $Bridge_{\lambda}(\beta)$ for $\lambda$ > 0 is a convex function in $\beta$, which is strictly convex for q > 1.
+
+Denote $RSS = (y - X\beta)^T(y - X\beta)$, we then calculate its second derivative:
+
+$$
+\begin{split}
+\frac{\partial^2Bridge_{\lambda}(\beta)}{\partial \beta^2}
+&= \frac{\partial^2 RSS}{\partial \beta^2} + \frac{\partial^2 \lambda\sum_{j=1}^{p}|\beta_{j}|^q}{\partial \beta^2} \\ \\
+\frac{\partial RSS}{\partial \beta}
+&= -2X^T(y - X\beta) \\
+\frac{\partial^2 RSS}{\partial \beta^2}
+&= 2X^TX \\
+\frac{\partial \lambda\sum_{j=1}^{p}|\beta_{j}|^q}{\partial \beta_{j}}
+&= \lambda q |\beta_{j}|^{q-1} sign(\beta_{j}) \\
+\frac{\partial^2 \lambda\sum_{j=1}^{p}|\beta_{j}|^q}{\partial \beta_{j}^2}
+&= sign(\beta_{j})^2 \lambda q (q-1) |\beta_{j}|^{q-2}  \\
+&= \lambda q (q-1) |\beta_{j}|^{q-2}  \\
+\end{split}
+$$
+
+* $X^T X$ is postive semi-definite matrix
+
+* $\lambda q (q-1) |\beta_{j}|^{q-2} \geq 0$ for $q \geq 1, \lambda > 0$
+
+* $\lambda q (q-1) |\beta_{j}|^{q-2} > 0$ for $q > 1$
+
+So $Bridge_{\lambda}(\beta)$ for $\lambda$ > 0 is a convex function in $\beta$, which is strictly convex for q > 1.
+
+## (b) Show that for q > 1 there is a unique minimizer, $\hat{\beta}(\lambda)$, with $\sum_{j=1}^{p}|\hat{\beta_{j}}(\lambda)|^q \leq t_{0}$
+
+$Bridge_{\lambda}(\beta)$ is a convex function, if there exist unique minimizer $\hat{\beta}$, then $\frac{\partial RSS}{\partial \hat{\beta}} = 0$
+
+Denote $S_{j}(\beta, X, y) = \frac{\partial RSS}{\partial \beta_{j}}$ and $d(\gamma, \lambda, \beta) = \lambda q |\beta_{j}|^{q-1} sign(\beta_{j})$, solving the above equation equals to solve $S_{j}(\beta, X, y) = -d(q, \lambda, \beta_{j})$ for $j = 1,2,...,p$.
+
+Rewrite $\beta$ as $(\beta_{j}, \beta^{-j})$, where $\beta^{-j}$ is a (p-1) vector consisting of the $\beta_{i}'s$ other than $\beta_{j}$. Then we got:
+
+$$
+\begin{split}
+S_{j}(\beta_{j}, \beta^{-j}, X, y) &= -d(q, \lambda, \beta_{j}) \\
+S_{j}(\beta_{j}, \beta^{-j}, X, y) &= \frac{\partial (y - X\beta)^T(y - X\beta)}{\partial \beta_{j}} \\
+& = \frac{\partial (y - \sum_{i=1}^{p}x_{i}\beta_{i})^T(y - \sum_{i=1}^{p}x_{i}\beta_{i})}{\partial \beta_{j \in (1,2,...,p)}} \\
+& = 2x_{j}^Tx_{j}\beta_{j} + 2\sum_{i \neq j}x_{j}^Tx_{i}\beta_{i} - 2x_{j}^Ty \\
+-d(q, \lambda, \beta_{j}) &= \lambda q |\beta_{j}|^{q-1} sign(\beta_{j})
+\end{split}
+$$
+
+We can tell from above that:
+
+* $S_{j}(\beta_{j}, \beta^{-j}, X, y)$ is linear function of $\beta_{j}$, with positive slope $2x_{j}^Tx_{j}$
+
+* from answer for (a) we know that, $-d(q, \lambda, \beta_{j})$ is a nonlinear function of $\beta_{j}$ and continuous, differentiable and monotonically decreasering for q > 1, except at $\beta_{j} = 0$ for $1 <q < 2$
+
+So the equation above will have a unique solution.
+
+## (c)
+
+## (d)
+
+# 2. We perform best subset, forward stepwise, and backward stepwise selection on a single data set. For each approach, we obtain p + 1 models, containing 0, 1, 2, . . . , p predictors. Explain your answers:
+
+## (a) Which of the three models with k predictors has the smallest training RSS?
+
+Best subset selection has the smallest training RSS. Because forward and backward selection results depend heavily on the path they choose.
+
+## (b) Which of the three models with k predictors has the smallest test RSS?
+
+It varies by chance, the smallest test RSS could happened to any of them, most likely to be best subset selection though.
+
+## (c) True or False:
+
+### (i) The predictors in the k variable model identified by forward stepwise are a subset of the predictors in the (k+1) variable model identified by forward stepwise selection.
+
+True.
+
+### (ii) The predictors in the k-variable model identified by backward stepwise are a subset of the predictors in the (k+1) variable model identified by backward stepwise selection.
+
+True
+
+### (iii) The predictors in the k variable model identified by backward stepwise are a subset of the predictors in the (k+1) variable model identified by forward stepwise selection.
+
+False
+
+### (iv) The predictors in the k variable model identified by forward stepwise are a subset of the predictors in the (k+1) variable model identified by backward stepwise selection.
+
+False
+
+### (v) The predictors in the k variable model identified by best subset are a subset of the predictors in the (k+1) variable model identified by best subset selection.
+
+False
+
+# 3. Derive the entries in Table 3.4, the explicit forms for estimators in the orthogonal case.
+
+The OLS estimator of $\beta$ is $\hat{\beta}^{ols} = (X^T X)^{-1}X^T y$, and since X columns are orthonormal, $X^T X=I$, so $\hat{\beta}^{ols} = X^T y$.
+
+## a) for best subset
+
+Extend $X_{n\times p}$ to $\mathbb{R}^{n\times N}$, we add N - p linearly independent additional orthonormal vectors $\tilde{x}_{j}$ with corresponding $\gamma_{j}$ coefficients to the end, then y can write as:
+
+$$
+y = \sum_{j=1}^p \hat{\beta_{j}}^{ols}x_{j} + \sum_{j=p+1}^N \gamma_{j}\tilde{x}_{j}
+$$
+
+If we seek to approximate y with a subset of size M, then $\hat{y} = \sum_{j=1}^p I_{j}\hat{\beta_{j}}^{ols}x_{j}$, with $I_{j} = 1$ indicates $x_{j}$ in the subset, and zero otherwise. Then
+
+$$
+\begin{split}
+RSS &= ||y - \hat{y}||_2^2 \\
+&= ||\sum_{j=1}^p \hat{\beta_{j}}^{ols}x_{j} + \sum_{j=p+1}^N \gamma_{j}\tilde{x}_{j} - \sum_{j=1}^p I_{j}\hat{\beta_{j}}^{ols}x_{j}||_2^2 \\
+&= ||\sum_{j=1}^p (1 - I_{j})\hat{\beta_{j}}^{ols}x_{j} + \sum_{j=p+1}^N \gamma_{j}\tilde{x}_{j}||_2^2 \\
+&= \sum_{j=1}^p (1 - I_{j})^2\hat{\beta_{j}^2}^{ols} ||x_{j}||_2^2 + \sum_{j=p+1}^N \gamma_{j}^2||\tilde{x}_{j}||_2^2 \\
+&= \sum_{j=1}^p (1 - I_{j})^2\hat{\beta_{j}^2}^{ols} + \sum_{j=p+1}^N \gamma_{j}^2 \\
+\end{split}
+$$
+
+Now we rank all the $\hat{\beta_{j}}^{ols}$ by their absolute value $(|\hat{\beta_{[1]}}^{ols}| \geq |\hat{\beta_{[2]}}^{ols}| \geq ... \geq |\hat{\beta}_{[M]}^{ols}| \geq |\hat{\beta}_{[M+1]}^{ols}| \geq ... \geq |\hat{\beta}_{[p]}^{ols}|)$,
+then
+
+$$
+\begin{split}
+RSS &= \sum_{j=[1]}^{[M]} (1 - I_{j})^2\hat{\beta_{j}^2}^{ols} + \sum_{j=[M+1]}^{[p]} (1 - I_{j})^2\hat{\beta_{j}^2}^{ols} + \sum_{j=p+1}^N \gamma_{j}^2 \\
+min\{RSS\} &= \sum_{j=[M+1]}^{[p]} (1 - I_{j})^2\hat{\beta_{j}^2}^{ols} + \sum_{j=p+1}^N \gamma_{j}^2 \\
+with: \\
+\hat{\beta_{j}}^{best-subset} &= arg min_{\hat{\beta}^{ols}, I} RSS \\
+&= \hat{\beta_{j}}^{ols} \cdot I(|\hat{\beta_{j}}^{ols}| \geq |\hat{\beta}_{[M]}^{ols}|)
+\end{split}
+$$
+
+## b) for ridge regression
+
+From previous conclusion, we can derive 
+
+$$
+\begin{split}
+\hat{\beta}^{ridge} &= (X^T X + \lambda I)^{-1}X^T y \\
+&= (I+ \lambda I)^{-1}X^T y \\
+&= \frac{X^T y}{1+\lambda} \\
+&= \hat{\beta}^{ols} / (1+\lambda) \\
+\end{split}
+$$
+
+## c) for LASSO
+
+$L(\beta) = ||y - X\beta||_2^2 + \lambda||\beta||_1$, here we set the objective function as $F(\beta) = \frac{1}{2}||y - X\beta||_2^2 + \lambda||\beta||_1$, then 
+
+$$
+\begin{split}
+F(\beta) 
+&= \frac{1}{2}y^T y - y^TX\beta + \frac{1}{2}\beta^T\beta + \lambda||\beta||_1 \\
+&= const. - y^TX\beta + \frac{1}{2}||\beta||^2 + \lambda||\beta||_1 \\
+&= const. - (\hat{\beta}^{ols})^T\beta + \frac{1}{2}||\beta||^2 + \lambda||\beta||_1 \\
+\end{split}
+$$
+
+After remove the constant and consider each $\beta_{j}$ individually, we get $f(\beta_{j}) = -\hat{\beta_{j}}^{ols}\beta_{j} + \frac{1}{2}\beta_{j}^2 + \lambda|\beta_{j}|$ and we need to minimize it. Then we need $f'(\beta_{j}) = -\hat{\beta_{j}}^{ols} + \beta_{j} + \lambda\cdot sign(\beta_{j}) = 0$
+
+Here we consider 6 cases:
+
+* $\beta_{j} < 0$ and $\hat{\beta_{j}}^{ols} > 0$, then $f'(\beta_{j})$ will always < 0, there is no minimum
+
+* $\beta_{j} \geq 0$ and $\lambda > \hat{\beta_{j}}^{ols} > 0$, then $f'(\beta_{j})$ will always > 0, there is no minimum
+
+* $\beta_{j} \geq 0$ and $\hat{\beta_{j}}^{ols} \geq \lambda$, then we get $argmin_{\beta_{j}}f'(\beta_{j}) = \hat{\beta_{j}}^{ols} - \lambda$
+
+* $\beta_{j} > 0$ and $\hat{\beta_{j}}^{ols} < 0$, then $f'(\beta_{j})$ will always > 0, there is no minimum
+
+* $\beta_{j} \leq 0$ and $-\lambda < \hat{\beta_{j}}^{ols} < 0$, then $f'(\beta_{j})$ will always < 0, there is no minimum
+
+* $\beta_{j} \leq 0$ and $\hat{\beta_{j}}^{ols} \leq -\lambda$, then we get $argmin_{\beta_{j}}f'(\beta_{j}) = \hat{\beta_{j}}^{ols} + \lambda$
+
+Whenever there is no minimum, we discard the covariate, which means shrink the $\beta_{j} = 0$. So combine all those situations, $\hat{\beta}_{j}^{lasso} = sign(\hat{\beta_{j}}^{ols})(|\hat{\beta_{j}}^{ols}| - \lambda)_+$
+
+# 4. The prostate data described in Chapter 3 of [ESL] have been divided into a training set of size 67 and a test set of size 30. Carry out the following analyses on the training set. For each analysis, compute and plot the cross-validation or BIC estimates of the prediction error as the model complexity increases as in Figure 3.7. Report the final estimated model as well as the test error and its standard error over the test set as in Table 3.3. Briefly discuss your results.
+
+## (a) Best-subset linear regression with k chosen by 5-fold cross-validation.
+
+## (b) Best-subset linear regression with k chosen by BIC.
+
+## (c) Lasso regression with λ chosen by 5-fold cross-validation.
+
+## (d) Lasso regression with λ chosen by BIC.
+
+## (e) Principle component regression with q chosen by 5-fold cross-validation.
+
+## Appendix
+```{r, ref.label=knitr::all_labels(),echo=TRUE,eval=FALSE}
+```
