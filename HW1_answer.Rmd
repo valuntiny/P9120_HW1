@@ -33,6 +33,7 @@ library(glmnet) # for lasso
 # library(devtools)
 # install_github("gabrielrvsc/HDeconometrics")
 library(HDeconometrics) # for ic.glmnet
+library(pls) # for cv.pcr
 options(knitr.table.format = "latex")
 theme_set(theme_bw())
 ```
@@ -294,6 +295,7 @@ p.cv.bs <- ggplot(cv.bs.frame, aes(x = size, y = cv.mean)) +
   scale_x_discrete(limits = c(1:8)) +
   geom_vline(xintercept = 7, linetype = "dotted", 
                 color = "red", size = 1.5)
+p.cv.bs
 
 ```
 
@@ -305,7 +307,7 @@ test_error.bs.cv = mean((prostate_test$lpsa - pred.bs.cv) ^ 2)
 
 ```
 
-Based on CV results, the best subset size is 7, so we use the whole training data to build the model and then test on test data, we get the test.error = `r test_error.bs.cv`.
+Based on CV results, the best subset size is 7, then we use the whole training data to build the model and then test on test data, we get the test.error = `r test_error.bs.cv`.
 
 ## (b) Best-subset linear regression with k chosen by BIC.
 
@@ -320,7 +322,7 @@ p.bic.bs = ggplot(bic.bs.frame, aes(x = size, y = BIC.value)) +
   scale_x_discrete(limits = c(1:8)) +
   geom_vline(xintercept = 2, linetype = "dotted", 
                 color = "red", size = 1.5)
-
+p.bic.bs
 ```
 
 ```{r}
@@ -329,7 +331,7 @@ test_error.bs.bic = mean((prostate_test$lpsa - pred.bs.bic) ^ 2)
 
 ```
 
-Based on BIC results, the best subset size is 2, so we use the whole training data to build the model and then test on test data, we get the test.error = `r test_error.bs.bic`.
+Based on BIC results, the best subset size is 2, then we use the whole training data to build the model and then test on test data, we get the test.error = `r test_error.bs.bic`.
 
 ## (c) Lasso regression with $\lambda$ chosen by 5-fold cross-validation.
 
@@ -338,16 +340,16 @@ Based on BIC results, the best subset size is 2, so we use the whole training da
 bestfit.lasso.cv = cv.glmnet(data.matrix(prostate_train[,-ncol(prostate_train)]),
                              data.matrix(prostate_train[,ncol(prostate_train)]), 
                              family = "gaussian", alpha = 1, type.measure = "mse")
-
-# p.cv.lasso = plot(lasso.res)
 pred.lasso.cv = predict.cv.glmnet(bestfit.lasso.cv, 
                                   data.matrix(prostate_test[,-ncol(prostate_test)]), 
                                   lambda = bestfit.lasso.cv$lambda.min)
 test_error.lasso.cv = mean((prostate_test$lpsa - pred.lasso.cv) ^ 2)
 
+plot(bestfit.lasso.cv)
+
 ```
 
-Based on CV results, the best $\lambda$ = `r bestfit.lasso.cv$lambda.min`, so we use the whole training data to build the model and then test on test data, we get the test.error = `r test_error.lasso.cv`.
+Based on CV results, the best $\lambda$ = `r bestfit.lasso.cv$lambda.min`, then we use the whole training data to build the model and then test on test data, we get the test.error = `r test_error.lasso.cv`.
 
 ## (d) Lasso regression with $\lambda$ chosen by BIC.
 
@@ -375,6 +377,7 @@ p.bic.lasso = ggplot(bic.lasso.frame, aes(x = lambda, y = BIC.value)) +
 
 best.lambda = lambda.seq[which(bic.lasso.errors == min(bic.lasso.errors))]
 
+p.bic.lasso
 ```
 
 ```{r}
@@ -387,13 +390,58 @@ test_error.lasso.bic = mean((prostate_test$lpsa - pred.lasso.bic) ^ 2)
 
 ```
 
-Based on BIC results, the best $\lambda$ = `r best.lambda`, so we use the whole training data to build the model and then test on test data, we get the test.error = `r test_error.lasso.bic`.
+Based on BIC results, the best $\lambda$ = `r best.lambda`, then we use the whole training data to build the model and then test on test data, we get the test.error = `r test_error.lasso.bic`.
 
 ## (e) Principle component regression with q chosen by 5-fold cross-validation.
 
 ```{r}
+# pcr and choose q by CV
+bestfit.pcr.cv = pcr(lpsa ~ ., data = prostate_train, validation = "CV", 
+                     segments = 5, segment.type = c("random"), jackknife = TRUE)
+plot(bestfit.pcr.cv, "validation", estimate = c("train", "CV"), legendpos = "topright", )
+scoreplot(bestfit.pcr.cv, comps = 1:4, labels = colnames(prostate_train))
 
 ```
+
+```{r}
+pred.pcr.cv = predict(bestfit.pcr.cv, data.matrix(prostate_test[,-ncol(prostate_test)]), ncomp = 3)
+test_error.pcr.cv = mean((prostate_test$lpsa - pred.pcr.cv) ^ 2)
+
+```
+
+Based on PCR results and scoreplot, the best $q$ = 3, then we use the whole training data to build the model and then test on test data, we get the test.error = `r test_error.pcr.cv`.
+
+## conclusion for (a) ~ (e)
+
+* BS_CV: Best-subset linear regression with k chosen by 5-fold cross-validation
+
+* BS_BIC: Best-subset linear regression with k chosen by BIC
+
+* LASSO_CV: Lasso regression with $\lambda$ chosen by 5-fold cross-validation
+
+* LASSO_BIC: Lasso regression with $\lambda$ chosen by BIC
+
+* PCR_CV: Principle component regression with q chosen by 5-fold cross-validation
+
+```{r}
+# create output table
+test.result = tibble(name = c("intercept", colnames(prostate_train)[1:8], "TEST ERROR", "STD ERROR"),
+                     BS_CV = c(coef(bestfit.bs.cv, id = 7)[1:7], ".", 
+                               coef(bestfit.bs.cv, id = 7)[8], 
+                               test_error.bs.cv, cv.bs.frame$cv.sd[7]), 
+                     BS_BIC = c(coef(bestfit.bs.cv, id = 2), rep(".", 6), 
+                                test_error.bs.bic, cv.bs.frame$cv.sd[2]),
+                     LASSO_CV = c(as.vector(coef(bestfit.lasso.cv, bestfit.lasso.cv$lambda.min)), 
+                                  test_error.lasso.cv, 
+                                  bestfit.lasso.cv$cvsd[which(bestfit.lasso.cv$lambda == min(bestfit.lasso.cv$lambda))]),
+                     LASSO_BIC = c(as.vector(coef(bestfit.lasso.bic)), 
+                                   test_error.lasso.bic, "."), 
+                     PCR_CV = c(".", bestfit.pcr.cv$coefficients[,,3], 
+                                test_error.pcr.cv, "."))
+
+test.result %>% knitr::kable()
+```
+
 
 
 ## Appendix
