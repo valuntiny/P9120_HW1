@@ -29,6 +29,10 @@ header-includes:
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, comment = "")
 library(tidyverse)
 library(leaps) # for best subset selection
+library(glmnet) # for lasso
+# library(devtools)
+# install_github("gabrielrvsc/HDeconometrics")
+library(HDeconometrics) # for ic.glmnet
 options(knitr.table.format = "latex")
 theme_set(theme_bw())
 ```
@@ -261,7 +265,7 @@ prostate_test = read.table("prostate_cancer.dat", header = T) %>%
 K = 5
 n = 100
 
-predict.regsubsets =function (object ,newdata ,id ,...){
+predict_regsubsets = function (object ,newdata ,id ,...){
         form=as.formula(object$call [[2]])
         mat=model.matrix(form,newdata)
         coefi=coef(object ,id=id)
@@ -274,7 +278,7 @@ for (j in 1:n) {
   cv_dat_index = sample(1:nrow(prostate_train), nrow(prostate_train) * 0.8, replace = F)
   best.fit = regsubsets(lpsa ~ ., data = prostate_train[cv_dat_index, ], nvmax = 8) 
   for (i in 1:8) {
-    pred = predict(best.fit, prostate_train[-cv_dat_index, ], id = i) 
+    pred = predict_regsubsets(best.fit, prostate_train[-cv_dat_index, ], id = i) 
     cv.bs.errors[j,i] = mean((prostate_train$lpsa[-cv_dat_index] - pred)^2)
     }
 }
@@ -287,7 +291,7 @@ p.cv.bs <- ggplot(cv.bs.frame, aes(x = size, y = cv.mean)) +
   geom_errorbar(aes(ymin = cv.mean - cv.sd, ymax = cv.mean + cv.sd), 
                 width = .2, position = position_dodge(0.05)) +
   labs(title = "Best Subset Regression CV Results of Different k", y = "MSE", x = "Size") + 
-  scale_x_discrete(limits = c(1:9)) +
+  scale_x_discrete(limits = c(1:8)) +
   geom_vline(xintercept = 7, linetype = "dotted", 
                 color = "red", size = 1.5)
 
@@ -296,26 +300,101 @@ p.cv.bs <- ggplot(cv.bs.frame, aes(x = size, y = cv.mean)) +
 ```{r}
 # full training data for building model and test
 bestfit.bs.cv = regsubsets(lpsa ~ ., data = prostate_train, nvmax = 8)
-pred.bs.cv = predict(bestfit.bs.cv, prostate_test, id = 7) 
+pred.bs.cv = predict_regsubsets(bestfit.bs.cv, prostate_test, id = 7) 
 test_error.bs.cv = mean((prostate_test$lpsa - pred.bs.cv) ^ 2)
 
 ```
 
-Based on CV results, the best subset size is 7, so we use the whole training data to build the model and then test on test data, we get the test.error = `r test_error`.
+Based on CV results, the best subset size is 7, so we use the whole training data to build the model and then test on test data, we get the test.error = `r test_error.bs.cv`.
 
 ## (b) Best-subset linear regression with k chosen by BIC.
 
 ```{r}
-bs.bic.frame = tibble(size = c(1:8),
-                      BIC.value = ummary(best.fit)$bic)
+# best subset and choose k by BIC
+bic.bs.frame = tibble(size = c(1:8),
+                      BIC.value = summary(bestfit.bs.cv)$bic)
+
+p.bic.bs = ggplot(bic.bs.frame, aes(x = size, y = BIC.value)) + 
+  geom_line() + geom_point() + 
+  labs(title = "Best Subset Regression BIC Results of Different k", y = "BIC", x = "Size") + 
+  scale_x_discrete(limits = c(1:8)) +
+  geom_vline(xintercept = 2, linetype = "dotted", 
+                color = "red", size = 1.5)
 
 ```
 
-## (c) Lasso regression with λ chosen by 5-fold cross-validation.
+```{r}
+pred.bs.bic = predict_regsubsets(bestfit.bs.cv, prostate_test, id = 2) 
+test_error.bs.bic = mean((prostate_test$lpsa - pred.bs.bic) ^ 2)
 
-## (d) Lasso regression with λ chosen by BIC.
+```
+
+Based on BIC results, the best subset size is 2, so we use the whole training data to build the model and then test on test data, we get the test.error = `r test_error.bs.bic`.
+
+## (c) Lasso regression with $\lambda$ chosen by 5-fold cross-validation.
+
+```{r}
+# lasso and choose lambda by cv
+bestfit.lasso.cv = cv.glmnet(data.matrix(prostate_train[,-ncol(prostate_train)]),
+                             data.matrix(prostate_train[,ncol(prostate_train)]), 
+                             family = "gaussian", alpha = 1, type.measure = "mse")
+
+# p.cv.lasso = plot(lasso.res)
+pred.lasso.cv = predict.cv.glmnet(bestfit.lasso.cv, 
+                                  data.matrix(prostate_test[,-ncol(prostate_test)]), 
+                                  lambda = bestfit.lasso.cv$lambda.min)
+test_error.lasso.cv = mean((prostate_test$lpsa - pred.lasso.cv) ^ 2)
+
+```
+
+Based on CV results, the best $\lambda$ = `r bestfit.lasso.cv$lambda.min`, so we use the whole training data to build the model and then test on test data, we get the test.error = `r test_error.lasso.cv`.
+
+## (d) Lasso regression with $\lambda$ chosen by BIC.
+
+```{r}
+# lasso and choose lambda by BIC
+K = 5
+n = 100
+
+lambda.seq = seq(from = 0.0000001, to = 0.01, length.out = 1000)
+
+bic.lasso.errors = rep(0, length(lambda.seq))
+for (i in 1:length(lambda.seq)) {
+  best.fit = ic.glmnet(data.matrix(prostate_train[,-ncol(prostate_train)]),
+                      data.matrix(prostate_train[,ncol(prostate_train)]), 
+                      crit = "bic", family = "gaussian", alpha = 1, lambda = lambda.seq[i])
+  bic.lasso.errors[i] = as.numeric(best.fit$ic[1])
+}
+
+bic.lasso.frame = tibble(lambda = lambda.seq,
+                         BIC.value = bic.lasso.errors)
+
+p.bic.lasso = ggplot(bic.lasso.frame, aes(x = lambda, y = BIC.value)) + 
+  geom_line() + geom_point() + 
+  labs(title = "LASSO Regression BIC Results of Different lambda", y = "BIC", x = "lambda")
+
+best.lambda = lambda.seq[which(bic.lasso.errors == min(bic.lasso.errors))]
+
+```
+
+```{r}
+bestfit.lasso.bic = glmnet(data.matrix(prostate_train[,-ncol(prostate_train)]),
+                      data.matrix(prostate_train[,ncol(prostate_train)]), 
+                      family = "gaussian", alpha = 1, lambda = best.lambda)
+pred.lasso.bic = predict.glmnet(bestfit.lasso.bic, 
+                                  data.matrix(prostate_test[,-ncol(prostate_test)]))
+test_error.lasso.bic = mean((prostate_test$lpsa - pred.lasso.bic) ^ 2)
+
+```
+
+Based on BIC results, the best $\lambda$ = `r best.lambda`, so we use the whole training data to build the model and then test on test data, we get the test.error = `r test_error.lasso.bic`.
 
 ## (e) Principle component regression with q chosen by 5-fold cross-validation.
+
+```{r}
+
+```
+
 
 ## Appendix
 ```{r, ref.label=knitr::all_labels(),echo=TRUE,eval=FALSE}
