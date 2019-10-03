@@ -28,6 +28,7 @@ header-includes:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, comment = "")
 library(tidyverse)
+library(leaps) # for best subset selection
 options(knitr.table.format = "latex")
 theme_set(theme_bw())
 ```
@@ -217,9 +218,98 @@ Whenever there is no minimum, we discard the covariate, which means shrink the $
 
 # 4. The prostate data described in Chapter 3 of [ESL] have been divided into a training set of size 67 and a test set of size 30. Carry out the following analyses on the training set. For each analysis, compute and plot the cross-validation or BIC estimates of the prediction error as the model complexity increases as in Figure 3.7. Report the final estimated model as well as the test error and its standard error over the test set as in Table 3.3. Briefly discuss your results.
 
+```{r}
+set.seed(99)
+
+# load data and standardize it
+prostate_train = read.table("prostate_cancer.dat", header = T) %>% 
+  mutate(lcavol = (lcavol - mean(lcavol)) / sd(lcavol),
+         lweight = (lweight - mean(lweight)) / sd(lweight),
+         age = (age - mean(age)) / sd(age),
+         lbph = (lbph - mean(lbph)) / sd(lbph),
+         svi = (svi - mean(svi)) / sd(svi),
+         lcp = (lcp - mean(lcp)) / sd(lcp),
+         gleason = (gleason - mean(gleason)) / sd(gleason),
+         pgg45 = (pgg45 - mean(pgg45)) / sd(pgg45),
+         svi = as.factor(svi), 
+         train = as.factor(train)) %>% 
+  filter(train == "TRUE") %>% 
+  select(-train) %>% 
+  as.tibble()
+
+prostate_test = read.table("prostate_cancer.dat", header = T) %>% 
+  mutate(lcavol = (lcavol - mean(lcavol)) / sd(lcavol),
+         lweight = (lweight - mean(lweight)) / sd(lweight),
+         age = (age - mean(age)) / sd(age),
+         lbph = (lbph - mean(lbph)) / sd(lbph),
+         svi = (svi - mean(svi)) / sd(svi),
+         lcp = (lcp - mean(lcp)) / sd(lcp),
+         gleason = (gleason - mean(gleason)) / sd(gleason),
+         pgg45 = (pgg45 - mean(pgg45)) / sd(pgg45),
+         svi = as.factor(svi), 
+         train = as.factor(train)) %>% 
+  filter(train == "FALSE") %>% 
+  select(-train) %>% 
+  as.tibble()
+
+```
+
 ## (a) Best-subset linear regression with k chosen by 5-fold cross-validation.
 
+```{r}
+# best subset and choose k by CV
+K = 5
+n = 100
+
+predict.regsubsets =function (object ,newdata ,id ,...){
+        form=as.formula(object$call [[2]])
+        mat=model.matrix(form,newdata)
+        coefi=coef(object ,id=id)
+        xvars=names(coefi)
+        mat[,xvars]%*%coefi
+}
+
+cv.bs.errors = matrix(nrow = n, ncol = 8)
+for (j in 1:n) {
+  cv_dat_index = sample(1:nrow(prostate_train), nrow(prostate_train) * 0.8, replace = F)
+  best.fit = regsubsets(lpsa ~ ., data = prostate_train[cv_dat_index, ], nvmax = 8) 
+  for (i in 1:8) {
+    pred = predict(best.fit, prostate_train[-cv_dat_index, ], id = i) 
+    cv.bs.errors[j,i] = mean((prostate_train$lpsa[-cv_dat_index] - pred)^2)
+    }
+}
+cv.bs.frame = tibble(cv.mean = apply(cv.bs.errors, 2, mean), 
+                  cv.sd = apply(cv.bs.errors, 2, sd), 
+                  size = c(1:8))
+  
+p.cv.bs <- ggplot(cv.bs.frame, aes(x = size, y = cv.mean)) + 
+  geom_line() + geom_point() + 
+  geom_errorbar(aes(ymin = cv.mean - cv.sd, ymax = cv.mean + cv.sd), 
+                width = .2, position = position_dodge(0.05)) +
+  labs(title = "Best Subset Regression CV Results of Different k", y = "MSE", x = "Size") + 
+  scale_x_discrete(limits = c(1:9)) +
+  geom_vline(xintercept = 7, linetype = "dotted", 
+                color = "red", size = 1.5)
+
+```
+
+```{r}
+# full training data for building model and test
+bestfit.bs.cv = regsubsets(lpsa ~ ., data = prostate_train, nvmax = 8)
+pred.bs.cv = predict(bestfit.bs.cv, prostate_test, id = 7) 
+test_error.bs.cv = mean((prostate_test$lpsa - pred.bs.cv) ^ 2)
+
+```
+
+Based on CV results, the best subset size is 7, so we use the whole training data to build the model and then test on test data, we get the test.error = `r test_error`.
+
 ## (b) Best-subset linear regression with k chosen by BIC.
+
+```{r}
+bs.bic.frame = tibble(size = c(1:8),
+                      BIC.value = ummary(best.fit)$bic)
+
+```
 
 ## (c) Lasso regression with λ chosen by 5-fold cross-validation.
 
